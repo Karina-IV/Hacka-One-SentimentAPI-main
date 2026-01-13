@@ -1,8 +1,10 @@
+
 /**
  * Módulo principal da UI de Análise de Sentimento
  */
 const SentimentUI = (function() {
 
+    
     const API_ENDPOINT = '/sentiment';
 
     // Estado da aplicação
@@ -82,9 +84,90 @@ const SentimentUI = (function() {
     }
 
     
-    async function analyzeSentiment(
+    async function analyzeSentiment() {
+        const text = elements.textInput.value.trim();
 
+        if (text.length < 5) {
+            showError('O texto deve ter pelo menos 5 caracteres');
+            return;
+        }
+
+        if (!isConnected) {
+            showError('API não disponível');
+            return;
+        }
+
+        elements.loading.classList.add('show');
+        hideError();
+        elements.resultSection.classList.remove('show');
+
+        try {
+            const response = await fetch(API_ENDPOINT, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({ text })
+            });
+
+            if (!response.ok) {
+                throw new Error(`Erro ${response.status}`);
+            }
+
+            const data = await response.json();
+            displayResult(data);
+            addToHistory(text, data);
+
+        } catch (error) {
+            showError('API não disponível');
+        } finally {
+            elements.loading.classList.remove('show');
+        }
+    }
+
+    /**
+     * Exibe resultado
+     */
+    function displayResult(data) {
+        const sentiment = data.previsao.toLowerCase();
+        const probability = data.probabilidade * 100;
+
+        elements.sentimentLabel.textContent = sentiment.toUpperCase();
+        elements.confidenceValue.textContent = `${Math.round(probability)}%`;
+        elements.probabilityValue.textContent = `${Math.round(probability)}%`;
+        elements.progressFill.style.width = `${probability}%`;
+
+        elements.resultSection.classList.add('show');
+    }
+
+    function addToHistory(text, data) {
+        analysisHistory.unshift({
+            id: Date.now(),
+            text,
+            sentiment: data.previsao,
+            probability: data.probabilidade
+        });
+    }
+
+    function showError(message) {
+        elements.errorMessage.textContent = message;
+        elements.errorMessage.classList.add('show');
+    }
+
+    function hideError() {
+        elements.errorMessage.classList.remove('show');
+    }
+
+    function loadHistory() {}
+    function saveHistory() {}
+
+    return {
+        init,
+        analyzeSentiment,
+        updateCharCount
+    };
+})();
 
 document.addEventListener('DOMContentLoaded', SentimentUI.init);
-
 window.SentimentUI = SentimentUI;
