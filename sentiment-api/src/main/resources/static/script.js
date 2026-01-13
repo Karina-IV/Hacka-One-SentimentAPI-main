@@ -2,6 +2,8 @@
 /**
  * Módulo principal da UI de Análise de Sentimento
  */
+let isConnected = true; 
+
 const SentimentUI = (function() {
 
     
@@ -92,10 +94,6 @@ const SentimentUI = (function() {
             return;
         }
 
-        if (!isConnected) {
-            showError('API não disponível');
-            return;
-        }
 
         elements.loading.classList.add('show');
         hideError();
