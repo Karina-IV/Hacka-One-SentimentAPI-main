@@ -15,7 +15,7 @@ public class SentimentService {
     private final RestTemplate restTemplate = new RestTemplate();
 
     // quando rodar localmente
-    private final String DS_API_URL = "https://api-python-wymy.onrender.com/predict";
+    private final String DS_API_URL = "https://sentiment-api-java.onrender.com/predict";
 
     public SentimentResponse analyze( @NotNull SentimentRequest request) {
         Map<String, String> payload = Map.of("text", request.text());
