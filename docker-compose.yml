@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  # Serviço do Python
+  sentiment-ds:
+    build: ./sentiment-ds
+    ports:
+      - "8000:8000"
+    networks:
+      - hackathon-net
+
+  # Serviço do Java
+  sentiment-api:
+    build: ./sentiment-api
+    ports:
+      - "8080:8080"
+    depends_on:
+      - sentiment-ds # Só inicia depois que o Python subir
+    environment:
+      # AQUI ESTÁ O PULO DO GATO (leia abaixo)
+      - SENTIMENT_URL=http://sentiment-ds:8000
+    networks:
+      - hackathon-net
+
+networks:
+  hackathon-net:
+    driver: bridge
