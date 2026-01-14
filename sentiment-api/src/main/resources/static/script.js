@@ -1,12 +1,11 @@
-
 /**
  * Módulo principal da UI de Análise de Sentimento
  */
-const SentimentUI = (function() {
+const SentimentUI = (function () {
 
     const API_ENDPOINT = '/sentiment';
+    const HISTORY_KEY = 'sentimentHistory';
 
-    // Estado da aplicação
     let analysisHistory = [];
     let isProcessing = false;
 
@@ -28,11 +27,11 @@ const SentimentUI = (function() {
         apiStatusText: document.getElementById('apiStatusText')
     };
 
-    /**
-     * Inicializa a aplicação
-     */
+    /* ===================== INIT ===================== */
+
     function init() {
         setupEventListeners();
+        loadHistory();
         updateCharCount();
         setApiStatus(true, 'Conectado à API');
     }
@@ -44,6 +43,8 @@ const SentimentUI = (function() {
             }
         });
     }
+
+    /* ===================== UI HELPERS ===================== */
 
     function updateCharCount() {
         const length = elements.textInput.value.length;
@@ -58,21 +59,27 @@ const SentimentUI = (function() {
         elements.apiStatusText.style.color = connected ? '#10b981' : '#ef4444';
     }
 
-    /**
-     * Analisa o sentimento
-     */
+    function showError(message) {
+        elements.errorMessage.textContent = message;
+        elements.errorMessage.classList.add('show');
+    }
+
+    function hideError() {
+        elements.errorMessage.classList.remove('show');
+    }
+
+    /* ===================== MAIN ACTION ===================== */
+
     async function analyzeSentiment() {
         const text = elements.textInput.value.trim();
 
-        if (text.length < 5 || isProcessing) {
-            return;
-        }
+        if (text.length < 5 || isProcessing) return;
 
         isProcessing = true;
         updateCharCount();
 
-        elements.loading.classList.add('show');
         hideError();
+        elements.loading.classList.add('show');
         elements.resultSection.classList.remove('show');
 
         try {
@@ -86,11 +93,12 @@ const SentimentUI = (function() {
             });
 
             if (!response.ok) {
-                const msg =
-                    response.status === 429
-                        ? 'Serviço de IA está acordando. Tente novamente em alguns segundos.'
-                        : `Erro ${response.status}`;
-                throw new Error(msg);
+                if (response.status === 429) {
+                    throw new Error(
+                        'O serviço de IA está acordando. Aguarde alguns segundos e tente novamente.'
+                    );
+                }
+                throw new Error(`Erro ${response.status}`);
             }
 
             const data = await response.json();
@@ -98,7 +106,7 @@ const SentimentUI = (function() {
             addToHistory(text, data);
 
         } catch (error) {
-            showError(error.message);
+            showError(error.message || 'API não disponível');
         } finally {
             isProcessing = false;
             updateCharCount();
@@ -106,35 +114,75 @@ const SentimentUI = (function() {
         }
     }
 
+    /* ===================== RESULT ===================== */
+
     function displayResult(data) {
         const sentiment = data.previsao.toLowerCase();
-        const probability = data.probabilidade * 100;
+        const probability = Math.round(data.probabilidade * 100);
 
         elements.sentimentLabel.textContent = sentiment.toUpperCase();
-        elements.confidenceValue.textContent = `${Math.round(probability)}%`;
-        elements.probabilityValue.textContent = `${Math.round(probability)}%`;
+        elements.confidenceValue.textContent = `${probability}%`;
+        elements.probabilityValue.textContent = `${probability}%`;
         elements.progressFill.style.width = `${probability}%`;
 
         elements.resultSection.classList.add('show');
     }
 
+    /* ===================== HISTORY ===================== */
+
     function addToHistory(text, data) {
         analysisHistory.unshift({
             id: Date.now(),
-            text,
-            sentiment: data.previsao,
+            text: text.length > 50 ? text.substring(0, 50) + '...' : text,
+            sentiment: data.previsao.toLowerCase(),
             probability: data.probabilidade
+        });
+
+        if (analysisHistory.length > 10) {
+            analysisHistory.pop();
+        }
+
+        saveHistory();
+        updateHistoryDisplay();
+    }
+
+    function updateHistoryDisplay() {
+        elements.historyList.innerHTML = '';
+
+        analysisHistory.forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'history-item';
+
+            const icon =
+                item.sentiment === 'positivo'
+                    ? '<i class="fas fa-smile"></i>'
+                    : '<i class="fas fa-frown"></i>';
+
+            div.innerHTML = `
+                <div class="history-text">${item.text}</div>
+                <div class="history-sentiment ${item.sentiment}">
+                    ${icon} ${item.sentiment.toUpperCase()}
+                    (${Math.round(item.probability * 100)}%)
+                </div>
+            `;
+
+            elements.historyList.appendChild(div);
         });
     }
 
-    function showError(message) {
-        elements.errorMessage.textContent = message;
-        elements.errorMessage.classList.add('show');
+    function saveHistory() {
+        localStorage.setItem(HISTORY_KEY, JSON.stringify(analysisHistory));
     }
 
-    function hideError() {
-        elements.errorMessage.classList.remove('show');
+    function loadHistory() {
+        const saved = localStorage.getItem(HISTORY_KEY);
+        if (saved) {
+            analysisHistory = JSON.parse(saved);
+            updateHistoryDisplay();
+        }
     }
+
+    /* ===================== PUBLIC API ===================== */
 
     return {
         init,
