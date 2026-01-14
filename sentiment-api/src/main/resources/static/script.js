@@ -2,16 +2,13 @@
 /**
  * Módulo principal da UI de Análise de Sentimento
  */
-let isConnected = true; 
-
 const SentimentUI = (function() {
 
-    
     const API_ENDPOINT = '/sentiment';
 
     // Estado da aplicação
     let analysisHistory = [];
-    let isConnected = false;
+    let isProcessing = false;
 
     // Cache de elementos DOM
     const elements = {
@@ -36,64 +33,43 @@ const SentimentUI = (function() {
      */
     function init() {
         setupEventListeners();
-        loadHistory();
-        checkApiConnection();
         updateCharCount();
+        setApiStatus(true, 'Conectado à API');
     }
 
-    /**
-     * Configura os event listeners
-     */
     function setupEventListeners() {
         elements.textInput.addEventListener('keydown', (e) => {
             if (e.ctrlKey && e.key === 'Enter') {
                 analyzeSentiment();
             }
         });
-
-        setInterval(checkApiConnection, 30000);
     }
 
-    /**
-     * Atualiza o contador de caracteres
-     */
     function updateCharCount() {
         const length = elements.textInput.value.length;
         elements.charCount.textContent = `${length} caracteres`;
-        elements.analyzeBtn.disabled = length < 5;
-    }
-
-    
-    async function checkApiConnection() {
-        try {
-            const response = await fetch('/actuator/health');
-            if (response.ok) {
-                setApiStatus(true, 'Conectado à API');
-            } else {
-                setApiStatus(false, 'API não disponível');
-            }
-        } catch {
-            setApiStatus(false, 'API não disponível');
-        }
+        elements.analyzeBtn.disabled = length < 5 || isProcessing;
     }
 
     function setApiStatus(connected, message) {
-        isConnected = connected;
         elements.apiStatusIcon.className =
             connected ? 'fas fa-circle connected' : 'fas fa-circle disconnected';
         elements.apiStatusText.textContent = message;
         elements.apiStatusText.style.color = connected ? '#10b981' : '#ef4444';
     }
 
-    
+    /**
+     * Analisa o sentimento
+     */
     async function analyzeSentiment() {
         const text = elements.textInput.value.trim();
 
-        if (text.length < 5) {
-            showError('O texto deve ter pelo menos 5 caracteres');
+        if (text.length < 5 || isProcessing) {
             return;
         }
 
+        isProcessing = true;
+        updateCharCount();
 
         elements.loading.classList.add('show');
         hideError();
@@ -110,7 +86,11 @@ const SentimentUI = (function() {
             });
 
             if (!response.ok) {
-                throw new Error(`Erro ${response.status}`);
+                const msg =
+                    response.status === 429
+                        ? 'Serviço de IA está acordando. Tente novamente em alguns segundos.'
+                        : `Erro ${response.status}`;
+                throw new Error(msg);
             }
 
             const data = await response.json();
@@ -118,15 +98,14 @@ const SentimentUI = (function() {
             addToHistory(text, data);
 
         } catch (error) {
-            showError('API não disponível');
+            showError(error.message);
         } finally {
+            isProcessing = false;
+            updateCharCount();
             elements.loading.classList.remove('show');
         }
     }
 
-    /**
-     * Exibe resultado
-     */
     function displayResult(data) {
         const sentiment = data.previsao.toLowerCase();
         const probability = data.probabilidade * 100;
@@ -156,9 +135,6 @@ const SentimentUI = (function() {
     function hideError() {
         elements.errorMessage.classList.remove('show');
     }
-
-    function loadHistory() {}
-    function saveHistory() {}
 
     return {
         init,
